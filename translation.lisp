@@ -32,11 +32,22 @@
   (declare (special *translations*))
   (loop for i in *translations* if (= (slot-value (translation-string i) 'id) (slot-value obj 'id)) count i))
 
+(defun langs-equal (item1 item2)
+  (equal (getf item1 :lang) (getf item2 :lang)))
+
 (defmacro define-lang-translation (lang)
   `(defmethod ,(intern (string-upcase (format nil "~A-TRANSLATION" lang))) ((obj translation-string))
-     (let ((translation (first (find-translations-by-values :translation-string obj :scope (cons (list :lang ,(intern (string-upcase lang) "KEYWORD")) #'equal)))))
+     (let ((translation (first (find-translations-by-values :translation-string obj :scope (cons (list :lang ,(intern (string-upcase lang) "KEYWORD")) #'langs-equal)))))
        (and translation (value translation)))))
+
+(defmacro define-lang-scope (lang)
+  `(defmethod ,(intern (string-upcase (format nil "~A-SCOPE" lang))) ((obj translation-string))
+     (let ((translation (first (find-translations-by-values :translation-string obj :scope (cons (list :lang ,(intern (string-upcase lang) "KEYWORD")) #'langs-equal)))))
+       (and translation (translation-scope translation)))))
 
 (define-lang-translation en)
 (define-lang-translation uk)
 (define-lang-translation ru)
+(define-lang-scope en)
+(define-lang-scope uk)
+(define-lang-scope ru)

@@ -69,7 +69,7 @@
                    (when (and (consp value) (functionp (cdr value)))
                      (setf test-fun (cdr value))
                      (setf value (car value)))
-                   (unless (funcall test value 
+                   (unless (funcall test-fun value 
                                     (slot-value object 
                                                 (intern (string  key) 
                                                         (package-name (symbol-package (type-of object))))))
@@ -85,7 +85,7 @@
   (let* ((translation-string (or (find-translation-string-in-array string)
                                  (add-translation-string-to-array 
                                    (make-instance 'translation-string :value string :active t))))
-         (search-conditions (list :scope (cons args #'equal) 
+         (search-conditions (list :scope (cons (and (getf args :lang) (list :lang (getf args :lang))) #'equal) 
                                   :translation-string translation-string 
                                   :active t))
          (translation (or 
@@ -106,6 +106,7 @@
                                                             (current-language)) 
                                                         (list :value string :active t)
                                                         (list :value "Untranslated" :active nil)))))))))))) 
+    ;(setf (translation-scope translation) (list :lang (getf (translation-scope translation) :lang) :package (getf args :package)))
     (setf (slot-value translation-string 'time-last-used) (get-universal-time)) 
     (slot-value translation 'prevalence-serialized-i18n::value)))
 
@@ -131,7 +132,7 @@
 
   (if (find string *translated-table* :test #'string=)
     string
-    (let* ((splitted-str (cl-ppcre:split "(\\$[^\\$]+\\$)" (get-translated-string string :lang (current-language)) :with-registers-p t))
+    (let* ((splitted-str (cl-ppcre:split "(\\$[^\\$]+\\$)" (get-translated-string string :lang (current-language) :package (getf args :package)) :with-registers-p t))
            (return-value 
              (format nil "~{~A~}" 
                      (prog1
@@ -152,7 +153,7 @@
                                                                          value)))))
                                i))
                        (when args
-                         (error (format nil "Some keys do not correspond to their translate string value ~A" args))))))
+                         (error (format nil "Some keys do not correspond to their translate string value string \"~A\" args ~A" string args))))))
            (translated-string return-value))
       (push translated-string *translated-table*)
       translated-string)))
