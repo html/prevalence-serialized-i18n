@@ -32,6 +32,9 @@
   (declare (special *translations*))
   (loop for i in *translations* if (= (slot-value (translation-string i) 'id) (slot-value obj 'id)) count i))
 
+(defmethod translation-string-translations ((obj translation-string))
+  (loop for i in *translations* if (equal (translation-string i) obj) collect i))
+
 (defun langs-equal (item1 item2)
   (equal (getf item1 :lang) (getf item2 :lang)))
 

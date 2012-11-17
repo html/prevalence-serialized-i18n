@@ -2,7 +2,7 @@
 
 (asdf:defsystem #:prevalence-serialized-i18n
  :serial t
- :version "0.0.1"
+ :version "0.0.2"
  :description "Strings and their translations serialized with prevalence s-serialize"
  :author "Olexiy Zamkoviy <olexiy.z@gmail.com>"
  :license "LLGPL"

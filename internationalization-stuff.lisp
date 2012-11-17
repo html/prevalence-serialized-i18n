@@ -3,6 +3,7 @@
 (defvar *translated-table* nil)
 (defvar *translation-strings* nil) ; List of instances of translation-string
 (defvar *translations* nil) ; List of instances of translation
+(defvar *translation-mode* t)
 
 (defparameter *languages-supported* '(:en :ru :uk))
 (defparameter *default-language* :ru)
@@ -57,8 +58,12 @@
           (return-from get-next-id-for i))))
 
 (defun add-translation-to-array (translation)
-  (setf (slot-value translation 'id) (get-next-id-for *translations*) )
-  (push translation *translations*)
+  (declare (special *translation-mode*))
+  (setf (slot-value translation 'id) (get-next-id-for *translations*))
+  (when (or *translation-mode* (not (string= (value translation) (slot-value (translation-string translation) 'value))))
+    (pushnew translation *translations* :test (lambda (item1 item2)
+                                              (and (equal (translation-string item1) (translation-string item2))
+                                                   (equal (translation-scope item1) (translation-scope item2))))))
   translation)
 
 (defun find-translations-by-values (&rest args &key (test #'equal) &allow-other-keys)
@@ -82,33 +87,38 @@
   (first (apply #'find-translations-by-values args)))
 
 (defun get-translated-string (string &rest args)
-  (let* ((translation-string (or (find-translation-string-in-array string)
-                                 (add-translation-string-to-array 
-                                   (make-instance 'translation-string :value string :active t))))
-         (search-conditions (list :scope (cons (and (getf args :lang) (list :lang (getf args :lang))) #'equal) 
-                                  :translation-string translation-string 
-                                  :active t))
-         (translation (or 
-                        (apply #'first-translation-by-values search-conditions) 
-                        (progn
-                          (setf (getf search-conditions :active) nil)
-                          (or 
-                            (apply #'first-translation-by-values search-conditions)
-                            (progn
-                              (setf (getf search-conditions :scope) args)
-                              (log-translation-missing string args)
-                              (add-translation-to-array 
-                                (apply #'make-instance 
-                                       (list* 'translation 
-                                              (append search-conditions 
-                                                      (if (equal 
-                                                            (getf (getf search-conditions :scope) :lang)
-                                                            (current-language)) 
-                                                        (list :value string :active t)
-                                                        (list :value "Untranslated" :active nil)))))))))))) 
+  (flet ((get-translation-string-translation-for-lang (translation-string lang)
+           (loop for i in (translation-string-translations translation-string) 
+                 if (equal (getf (translation-scope i) :lang) lang)
+                 return i)))
+    (let* ((translation-string (or (find-translation-string-in-array string)
+                                   (add-translation-string-to-array 
+                                     (make-instance 'translation-string :value string :active t))))
+           (search-conditions (list :scope (and (getf args :lang) (list :lang (getf args :lang))) 
+                                    :translation-string translation-string 
+                                    :active t))
+           (translation (or 
+                          (get-translation-string-translation-for-lang translation-string (getf args :lang))
+                          (apply #'first-translation-by-values search-conditions)
+                          (progn
+                            (setf (getf search-conditions :active) nil)
+                            (or 
+                              (apply #'first-translation-by-values search-conditions)
+                              (progn
+                                (setf (getf search-conditions :scope) args)
+                                (log-translation-missing string args)
+                                (add-translation-to-array 
+                                  (apply #'make-instance 
+                                         (list* 'translation 
+                                                (append search-conditions 
+                                                        (if (equal 
+                                                              (getf (getf search-conditions :scope) :lang)
+                                                              (current-language)) 
+                                                          (list :value string :active t)
+                                                          (list :value "Untranslated" :active nil)))))))))))) 
     ;(setf (translation-scope translation) (list :lang (getf (translation-scope translation) :lang) :package (getf args :package)))
     (setf (slot-value translation-string 'time-last-used) (get-universal-time)) 
-    (slot-value translation 'prevalence-serialized-i18n::value)))
+    (slot-value translation 'prevalence-serialized-i18n::value))))
 
 ; Internationalization
 ; Stolen from i18n
@@ -152,23 +162,24 @@
                                                                          (remf args key)
                                                                          value)))))
                                i))
-                       (when args
+                       (when (> (length args) 2)
                          (error (format nil "Some keys do not correspond to their translate string value string \"~A\" args ~A" string args))))))
            (translated-string return-value))
       (push translated-string *translated-table*)
       translated-string)))
 
-(defun load-data (file-name)
+(defun load-data (&rest args)
   (setf *translation-strings* nil)
   (setf *translations* nil)
 
-  (with-open-file (file file-name :direction :input)
-    (flet ((ids-comparator (item1 item2)
-             (= (slot-value item1 'id) (slot-value item2 'id))))
-      (let ((state (s-serialization:make-serialization-state)))
-        (loop for i in (s-serialization:deserialize-xml file state) do 
-          (pushnew i *translations* :test #'ids-comparator)
-          (pushnew (translation-string i) *translation-strings* :test #'ids-comparator))))))
+  (loop for file-name in args do
+        (with-open-file (file file-name :direction :input)
+          (flet ((ids-comparator (item1 item2)
+                   (= (slot-value item1 'id) (slot-value item2 'id))))
+            (let ((state (s-serialization:make-serialization-state)))
+              (loop for i in (s-serialization:deserialize-xml file state) do 
+                (pushnew i *translations* :test #'ids-comparator)
+                (pushnew (translation-string i) *translation-strings* :test #'ids-comparator)))))))
 
 (defun save-data (file-name)
   (declare (special *translations*))

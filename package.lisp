@@ -10,7 +10,9 @@
     #:translations-count 
     #:translation-string-active-p 
     #:value 
-    #:active)
+    #:active 
+    #:*translations*
+    #:*translation-strings*)
   (:shadowing-import-from :c2mop #:defclass #:defgeneric #:defmethod
                           #:standard-generic-function #:ensure-generic-function
                           #:standard-class #:typep #:subtypep #:standard-method))
