@@ -45,6 +45,18 @@
           (return-from translation-scopes-equalp nil)))
   t)
 
+; Useful in cases when russian strings need to be translated
+(defvar *yandex-translate-api-key* nil)
+(defun translate-with-yandex (str &key (direction "ru-en"))
+  (unless *yandex-translate-api-key* 
+    (return-from translate-with-yandex str))
+
+  (let* ((key *yandex-translate-api-key*)
+         (url (format nil "https://translate.yandex.net/api/v1.5/tr.json/translate?key=~A&lang=~A&text=~A" key direction (arnesi:escape-as-uri str))))
+    (second (assoc :text (json:decode-json-from-string 
+                           (with-output-to-string (s)
+                             (external-program:run "curl" (list "-s" url) :output s)))))))
+
 (defun translate (string &rest scope)
   (when (zerop (length string))
     (return-from translate string))
@@ -57,4 +69,12 @@
       (progn 
         (setf (slot-value found-string 'time-last-used) (get-universal-time))
         (slot-value found-string 'value))
-      string)))
+      (progn
+        (weblocks-stores:persist-object 
+          *prevalence-serialized-i18n-store* 
+          (make-instance 'translation 
+                         :translation-string string
+                         :value (if (equal (weblocks::current-locale) :ru) string (translate-with-yandex string))
+                         :scope scope
+                         :active nil))
+        string))))
